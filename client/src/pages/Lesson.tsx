@@ -5,6 +5,19 @@ import { AuthContext } from '../context/AuthContext';
 import { PlayCircle, CheckCircle, List } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Normalise any YouTube / Vimeo URL to a proper embed URL
+const toEmbedUrl = (url: string): string => {
+  if (!url) return '';
+  if (url.includes('youtube.com/embed/') || url.includes('player.vimeo.com')) return url;
+  const shortMatch = url.match(/youtu\.be\/([^?&]+)/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  const watchMatch = url.match(/[?&]v=([^?&]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+  return url;
+};
+
 const Lesson = () => {
   const { id: courseId } = useParams();
   const [lessons, setLessons] = useState([]);
@@ -94,12 +107,13 @@ const Lesson = () => {
                 <iframe
                   width="100%"
                   height="100%"
-                  src={activeLesson.videoUrl}
+                  src={toEmbedUrl(activeLesson.videoUrl)}
                   title={activeLesson.title}
                   frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
-                ></iframe>
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
               </div>
             )}
             
