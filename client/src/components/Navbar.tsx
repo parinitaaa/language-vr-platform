@@ -24,6 +24,9 @@ const Navbar = () => {
         {user ? (
           <>
             <Link to="/dashboard" className="text-gray-600 hover:text-primary transition-colors font-medium">Dashboard</Link>
+            <Link to="/vr" className="text-gray-600 hover:text-primary transition-colors font-medium flex items-center gap-1">
+              🥽 VR Practice
+            </Link>
             {user.role === 'admin' && (
               <Link to="/admin" className="text-gray-600 hover:text-primary transition-colors font-medium">Admin</Link>
             )}

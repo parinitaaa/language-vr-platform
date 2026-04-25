@@ -10,6 +10,7 @@ const courseRoutes = require('./routes/courses');
 const lessonRoutes = require('./routes/lessons');
 const quizRoutes = require('./routes/quizzes');
 const progressRoutes = require('./routes/progress');
+const vrRoutes = require('./routes/vr');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/lessons', lessonRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/vr', vrRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

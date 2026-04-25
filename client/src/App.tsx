@@ -15,6 +15,8 @@ import Dashboard from './pages/Dashboard';
 import Lesson from './pages/Lesson';
 import Quiz from './pages/Quiz';
 import Admin from './pages/Admin';
+import VRHub from './pages/VRHub';
+import VRScene from './pages/VRScene';
 
 function App() {
   return (
@@ -35,6 +37,8 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/lesson/:id" element={<Lesson />} />
                 <Route path="/quiz/:lessonId" element={<Quiz />} />
+                <Route path="/vr" element={<VRHub />} />
+                <Route path="/vr/:scenarioId" element={<VRScene />} />
               </Route>
 
               {/* Admin Routes */}
