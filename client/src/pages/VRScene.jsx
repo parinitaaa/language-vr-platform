@@ -101,7 +101,7 @@ export default function VRScene() {
       </div>
 
       {/* 3D scene */}
-      <VRSceneRenderer setting={scenario.setting} />
+      <VRSceneRenderer setting={scenario.setting} theme={scenario.theme} title={scenario.title} />
 
       {/* Dialogue overlay */}
       <div className="absolute inset-0 z-10 pointer-events-none">

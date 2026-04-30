@@ -2,31 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 // Setting configs: background color, floor color, NPC color, ambient label
-const SETTINGS = {
-  'coffee-shop': {
-    bg: 0x2c1a0e,
-    floor: 0x5c3a1e,
-    npc: 0xe8c07d,
-    fog: 0x2c1a0e,
-    title: '☕ Coffee Shop'
-  },
-  airport: {
-    bg: 0x0d1b2a,
-    floor: 0x1a3a5c,
-    npc: 0x4a90d9,
-    fog: 0x0d1b2a,
-    title: '✈️ Airport'
-  },
-  market: {
-    bg: 0x1a2e1a,
-    floor: 0x2d5a27,
-    npc: 0xe07b39,
-    fog: 0x1a2e1a,
-    title: '🛒 Market'
-  }
-};
-
-export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
+export default function VRSceneRenderer({ setting = 'Scenario', theme = '#4F46E5', title = 'VR Practice', onReady }) {
   const mountRef = useRef(null);
   const rendererRef = useRef(null);
   const animIdRef = useRef(null);
@@ -34,14 +10,15 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
   const [vrActive, setVrActive] = useState(false);
 
   useEffect(() => {
-    const cfg = SETTINGS[setting] || SETTINGS['coffee-shop'];
-    const mount = mountRef.current;
-    if (!mount) return;
-
+    const baseColor = new THREE.Color(theme);
+    const bgColor = baseColor.clone().multiplyScalar(0.2);
+    const floorColor = baseColor.clone().multiplyScalar(0.4);
+    const npcColor = baseColor.clone();
+    
     // ── Scene ──────────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(cfg.bg);
-    scene.fog = new THREE.Fog(cfg.fog, 8, 25);
+    scene.background = bgColor;
+    scene.fog = new THREE.Fog(bgColor, 8, 25);
 
     // ── Camera ─────────────────────────────────────────────────────────────
     const camera = new THREE.PerspectiveCamera(75, mount.clientWidth / mount.clientHeight, 0.1, 100);
@@ -66,7 +43,7 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
 
     // ── Floor ──────────────────────────────────────────────────────────────
     const floorGeo = new THREE.PlaneGeometry(20, 20);
-    const floorMat = new THREE.MeshLambertMaterial({ color: cfg.floor });
+    const floorMat = new THREE.MeshLambertMaterial({ color: floorColor });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -74,14 +51,14 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
 
     // ── Ceiling ────────────────────────────────────────────────────────────
     const ceilingGeo = new THREE.PlaneGeometry(20, 20);
-    const ceilingMat = new THREE.MeshLambertMaterial({ color: cfg.bg });
+    const ceilingMat = new THREE.MeshLambertMaterial({ color: bgColor });
     const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 4;
     scene.add(ceiling);
 
     // ── Walls ──────────────────────────────────────────────────────────────
-    const wallMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(cfg.bg).lerp(new THREE.Color(0xffffff), 0.1) });
+    const wallMat = new THREE.MeshLambertMaterial({ color: bgColor.clone().lerp(new THREE.Color(0xffffff), 0.1) });
     [[-10, 0], [10, 0]].forEach(([x]) => {
       const w = new THREE.Mesh(new THREE.PlaneGeometry(20, 4), wallMat);
       w.position.set(x, 2, 0);
@@ -98,7 +75,7 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
     // torso
     const torso = new THREE.Mesh(
       new THREE.BoxGeometry(0.5, 0.7, 0.3),
-      new THREE.MeshLambertMaterial({ color: cfg.npc })
+      new THREE.MeshLambertMaterial({ color: npcColor })
     );
     torso.position.y = 1.15;
     torso.castShadow = true;
@@ -271,7 +248,7 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
       renderer.dispose();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
     };
-  }, [setting]);
+  }, [setting, theme, title]);
 
   // ── WebXR enter VR ─────────────────────────────────────────────────────
   const enterVR = async () => {
@@ -294,7 +271,7 @@ export default function VRSceneRenderer({ setting = 'coffee-shop', onReady }) {
 
       {/* Setting label */}
       <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-sm text-white text-sm font-semibold px-3 py-1.5 rounded-full pointer-events-none">
-        {SETTINGS[setting]?.title || setting}
+        {title} · <span className="opacity-70 font-normal italic">{setting}</span>
       </div>
 
       {/* Mouse-look hint */}

@@ -3,8 +3,19 @@ const VRProgress = require('../models/VRProgress');
 
 const getScenarios = async (req, res) => {
   try {
-    const scenarios = await VRScenario.find({}, '-dialogue');
+    const { language } = req.query;
+    const filter = language ? { language } : {};
+    const scenarios = await VRScenario.find(filter, '-dialogue');
     res.json(scenarios);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getLanguages = async (req, res) => {
+  try {
+    const languages = await VRScenario.distinct('language');
+    res.json(languages);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -61,4 +72,43 @@ const getUserProgress = async (req, res) => {
   }
 };
 
-module.exports = { getScenarios, getScenarioById, saveProgress, getUserProgress };
+const createScenario = async (req, res) => {
+  try {
+    const scenario = new VRScenario(req.body);
+    await scenario.save();
+    res.status(201).json(scenario);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const updateScenario = async (req, res) => {
+  try {
+    const scenario = await VRScenario.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!scenario) return res.status(404).json({ message: 'Scenario not found' });
+    res.json(scenario);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+const deleteScenario = async (req, res) => {
+  try {
+    const scenario = await VRScenario.findByIdAndDelete(req.params.id);
+    if (!scenario) return res.status(404).json({ message: 'Scenario not found' });
+    res.json({ message: 'Scenario deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { 
+  getScenarios, 
+  getScenarioById, 
+  saveProgress, 
+  getUserProgress, 
+  getLanguages,
+  createScenario,
+  updateScenario,
+  deleteScenario
+};

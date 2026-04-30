@@ -22,15 +22,32 @@ export default function VRHub() {
   const navigate = useNavigate();
 
   const [scenarios, setScenarios] = useState([]);
+  const [availableLanguages, setAvailableLanguages] = useState([]);
+  const [selectedLanguage, setSelectedLanguage] = useState(null);
   const [completedIds, setCompletedIds] = useState(new Set());
   const [scores, setScores] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAll = async () => {
+    const fetchLanguages = async () => {
+      try {
+        const res = await axios.get(`${API}/vr/languages`);
+        setAvailableLanguages(res.data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchLanguages();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedLanguage) return;
+
+    const fetchScenarios = async () => {
+      setLoading(true);
       try {
         const [scenRes, progRes] = await Promise.all([
-          axios.get(`${API}/vr/scenarios`),
+          axios.get(`${API}/vr/scenarios?language=${selectedLanguage}`),
           token
             ? axios.get(`${API}/vr/progress`, { headers: { Authorization: `Bearer ${token}` } })
             : Promise.resolve({ data: [] })
@@ -52,13 +69,54 @@ export default function VRHub() {
         setLoading(false);
       }
     };
-    fetchAll();
-  }, [token]);
+    fetchScenarios();
+  }, [token, selectedLanguage]);
 
   const completedCount = completedIds.size;
 
+  if (!selectedLanguage) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-4 py-1.5 text-indigo-300 text-sm font-medium mb-6">
+            🥽 Step into the World
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-white via-indigo-200 to-purple-300 bg-clip-text text-transparent">
+            Select Your Language
+          </h1>
+          <p className="text-gray-400 max-w-md mx-auto">
+            Choose the language you want to practice in immersive 3D environments.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-4xl w-full">
+          {availableLanguages.length > 0 ? (
+            availableLanguages.map(lang => (
+              <button
+                key={lang}
+                onClick={() => setSelectedLanguage(lang)}
+                className="group relative bg-white/5 border border-white/10 p-8 rounded-3xl hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all duration-300 text-center"
+              >
+                <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
+                  {lang === 'Spanish' ? '🇪🇸' : lang === 'French' ? '🇫🇷' : lang === 'Hindi' ? '🇮🇳' : lang === 'German' ? '🇩🇪' : lang === 'Japanese' ? '🇯🇵' : '🌍'}
+                </div>
+                <div className="text-xl font-bold text-white mb-1">{lang}</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest font-semibold group-hover:text-indigo-400 transition-colors">Select</div>
+              </button>
+            ))
+          ) : (
+            <div className="col-span-full bg-white/5 border border-dashed border-white/10 rounded-3xl p-12 text-center text-gray-500">
+              <p className="text-lg mb-2">No scenarios available yet.</p>
+              <p className="text-sm">Create a VR scenario in the Admin panel to get started.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-gray-950 text-white pb-20">
       {/* Hero */}
       <div className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-purple-950 to-gray-950 border-b border-white/5">
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -74,14 +132,20 @@ export default function VRHub() {
           ))}
         </div>
         <div className="relative max-w-5xl mx-auto px-6 py-16 text-center">
+          <button
+            onClick={() => setSelectedLanguage(null)}
+            className="mb-8 text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center justify-center gap-2 mx-auto transition-colors"
+          >
+            ← Change Language
+          </button>
           <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 rounded-full px-4 py-1.5 text-indigo-300 text-sm font-medium mb-6">
-            🥽 Immersive Language Practice
+            🥽 {selectedLanguage} Practice Hub
           </div>
           <h1 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-white via-indigo-200 to-purple-300 bg-clip-text text-transparent">
-            VR Practice Hub
+            {selectedLanguage} Scenarios
           </h1>
           <p className="text-gray-400 text-lg max-w-xl mx-auto mb-8">
-            Step into real-world scenarios and practice your Spanish in 3D environments. No headset required.
+            Immersive conversations in {selectedLanguage}. Step into real-world settings.
           </p>
           {/* Progress summary */}
           <div className="inline-flex items-center gap-6 bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
@@ -118,7 +182,13 @@ export default function VRHub() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {scenarios.map(scenario => {
-              const meta = SETTING_META[scenario.setting] || SETTING_META['coffee-shop'];
+              const meta = SETTING_META[scenario.setting] || { 
+                emoji: '🏪', 
+                label: scenario.setting.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+                gradient: 'from-gray-900/80 to-gray-700/60', 
+                border: 'border-gray-700/40', 
+                badge: 'bg-gray-700/30 text-gray-300' 
+              };
               const done = completedIds.has(scenario._id);
               const sc = scores[scenario._id];
 
@@ -165,9 +235,17 @@ export default function VRHub() {
 
         {!loading && scenarios.length === 0 && (
           <div className="text-center text-gray-500 py-20">
-            <p className="text-4xl mb-4">🥽</p>
-            <p className="text-lg">No scenarios available yet.</p>
-            <p className="text-sm mt-2">Run <code className="bg-white/5 px-2 py-0.5 rounded">node seedVR.js</code> in the server directory.</p>
+            <p className="text-4xl mb-4">🏜️</p>
+            <p className="text-lg font-bold text-white mb-2">No scenarios available yet</p>
+            <p className="text-sm max-w-xs mx-auto">
+              There are no {selectedLanguage} scenarios available. Please check back later or try another language.
+            </p>
+            <button
+              onClick={() => setSelectedLanguage(null)}
+              className="mt-8 text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+            >
+              Back to Language Selection
+            </button>
           </div>
         )}
       </div>

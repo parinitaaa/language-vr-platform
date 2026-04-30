@@ -30,7 +30,11 @@ export default function VRDialogue({
     'Hindi': 'hi-IN',
     'German': 'de-DE',
     'Italian': 'it-IT',
-    'Japanese': 'ja-JP'
+    'Japanese': 'ja-JP',
+    'Portuguese': 'pt-BR',
+    'Mandarin': 'zh-CN',
+    'Arabic': 'ar-SA',
+    'Korean': 'ko-KR'
   };
 
   const normalize = str => str.toLowerCase().trim()
@@ -42,7 +46,7 @@ export default function VRDialogue({
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = langMap[language] || 'es-ES';
+    utterance.lang = langMap[language] || 'en-US';
     utterance.rate = 0.85;
     utterance.pitch = 1;
     utterance.volume = 1;
@@ -86,7 +90,7 @@ export default function VRDialogue({
       
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = langMap[language] || 'es-ES';
+      recognition.lang = langMap[language] || 'en-US';
       recognition.start();
 
       recognition.onresult = (event) => {
@@ -121,7 +125,7 @@ export default function VRDialogue({
   };
 
   const handlePronounceCheck = (heard) => {
-    const targetPhrase = step.options[step.correct];
+    const targetPhrase = step.targetPhrase;
     const isCorrect = normalize(heard) === normalize(targetPhrase);
 
     if (isCorrect) {
@@ -254,11 +258,11 @@ export default function VRDialogue({
               <p className="text-gray-400 text-sm mb-2">Target Phrase:</p>
               <div className="flex items-center justify-center gap-3">
                 <p className="text-white text-2xl font-serif italic">
-                  {step.options[step.correct]}
+                  {step.targetPhrase}
                 </p>
                 {window.speechSynthesis && (
                   <button 
-                    onClick={() => speak(step.options[step.correct], 'target')}
+                    onClick={() => speak(step.targetPhrase, 'target')}
                     className={`p-2.5 rounded-full transition-all ${isSpeakingTarget ? 'bg-indigo-500 text-white animate-pulse' : 'bg-white/10 text-indigo-400 hover:bg-white/20'}`}
                   >
                     <Volume2 className="w-5 h-5" />
@@ -279,7 +283,7 @@ export default function VRDialogue({
               <div className="mb-6 p-4 bg-red-500/20 border border-red-500/40 rounded-xl animate-in slide-in-from-top-2">
                 <div className="text-left space-y-1">
                   <p className="text-red-400 text-sm"><span className="font-bold">You said:</span> "{transcript || '...'}"</p>
-                  <p className="text-gray-300 text-sm"><span className="font-bold">Expected:</span> "{step.options[step.correct]}"</p>
+                  <p className="text-gray-300 text-sm"><span className="font-bold">Expected:</span> "{step.targetPhrase}"</p>
                 </div>
                 {retryCount < 2 && (
                   <button 

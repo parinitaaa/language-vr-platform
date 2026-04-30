@@ -13,6 +13,21 @@ const LEVEL_CLS: Record<string, string> = {
 
 const confirm = (msg: string) => window.confirm(msg);
 
+interface VRScenario {
+  _id: string;
+  title: string;
+  setting: string;
+  theme: string;
+  language: string;
+  level: string;
+  dialogue: Array<{
+    npc: string;
+    options: string[];
+    correct: number;
+    targetPhrase: string;
+  }>;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -381,21 +396,247 @@ function CourseCard({ course, token, onDeleted, onUpdated }: {
   );
 }
 
+// ── VR Scenario Builder ──────────────────────────────────────────────────────
+
+function VRScenarioBuilder({ scenario, token, onSave, onCancel }: {
+  scenario?: VRScenario;
+  token: string | null;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(scenario?.title || '');
+  const [setting, setSetting] = useState(scenario?.setting || 'coffee-shop');
+  const [theme, setTheme] = useState(scenario?.theme || '#4F46E5');
+  const [language, setLanguage] = useState(scenario?.language || '');
+  const [level, setLevel] = useState(scenario?.level || 'Beginner');
+  const [dialogue, setDialogue] = useState(scenario?.dialogue || [{
+    npc: '',
+    options: ['', '', ''],
+    correct: 0,
+    targetPhrase: ''
+  }]);
+  const [saving, setSaving] = useState(false);
+
+  const addStep = () => {
+    setDialogue([...dialogue, { npc: '', options: ['', '', ''], correct: 0, targetPhrase: '' }]);
+  };
+
+  const updateStep = (i: number, patch: any) => {
+    setDialogue(dialogue.map((s, idx) => idx === i ? { ...s, ...patch } : s));
+  };
+
+  const updateOption = (si: number, oi: number, val: string) => {
+    setDialogue(dialogue.map((s, idx) => {
+      if (idx !== si) return s;
+      const opts = [...s.options];
+      opts[oi] = val;
+      return { ...s, options: opts };
+    }));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !language || dialogue.length === 0) {
+      toast.error('Title, language and at least one dialogue step required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = { title, setting, theme, language, level, dialogue };
+      if (scenario?._id) {
+        await axios.put(`${API}/vr/scenarios/${scenario._id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        toast.success('Scenario updated');
+      } else {
+        await axios.post(`${API}/vr/scenarios`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        toast.success('Scenario created');
+      }
+      onSave();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const preview = (text: string, lang: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const langMap: any = { 'Spanish': 'es-ES', 'French': 'fr-FR', 'Hindi': 'hi-IN', 'German': 'de-DE' };
+    u.lang = langMap[lang] || 'en-US';
+    window.speechSynthesis.speak(u);
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-gray-900">{scenario ? 'Edit Scenario' : 'New VR Scenario'}</h3>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Scenario Title *">
+            <input required value={title} onChange={e => setTitle(e.target.value)} className={inp} placeholder="Ordering Food" />
+          </Field>
+          <Field label="Language *">
+            <input required value={language} onChange={e => setLanguage(e.target.value)} className={inp} placeholder="Spanish" />
+          </Field>
+          <Field label="Setting *">
+            <select value={setting} onChange={e => setSetting(e.target.value)} className={inp}>
+              <option value="coffee-shop">Coffee Shop</option>
+              <option value="airport">Airport</option>
+              <option value="market">Market</option>
+              <option value="office">Office</option>
+              <option value="street">Street</option>
+            </select>
+          </Field>
+          <Field label="Environment Theme (Color)">
+            <div className="flex gap-2">
+              <input type="color" value={theme} onChange={e => setTheme(e.target.value)} className="h-10 w-12 rounded border p-1" />
+              <input value={theme} onChange={e => setTheme(e.target.value)} className={inp} />
+            </div>
+          </Field>
+          <Field label="Difficulty Level">
+            <select value={level} onChange={e => setLevel(e.target.value)} className={inp}>
+              {LEVELS.map(l => <option key={l}>{l}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        <div className="space-y-4 pt-4 border-t border-gray-100">
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-gray-800">Dialogue Steps</h4>
+            <button type="button" onClick={addStep} className="text-indigo-600 font-bold text-sm hover:underline">+ Add Step</button>
+          </div>
+
+          {dialogue.map((step, si) => (
+            <div key={si} className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-4 relative">
+              <button type="button" onClick={() => setDialogue(dialogue.filter((_, i) => i !== si))} 
+                className="absolute top-4 right-4 text-gray-400 hover:text-red-500">✕</button>
+              
+              <Field label={`Step ${si+1}: NPC Line *`}>
+                <div className="flex gap-2">
+                  <input required value={step.npc} onChange={e => updateStep(si, { npc: e.target.value })} className={inp} placeholder="What says the character?" />
+                  <button type="button" onClick={() => preview(step.npc, language)} className="px-3 bg-gray-200 rounded-lg text-xs font-bold">🔊</button>
+                </div>
+              </Field>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {step.options.map((opt, oi) => (
+                  <div key={oi} className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Option {oi+1} {oi === step.correct && '✅'}</label>
+                    <div className="flex gap-1">
+                      <input required value={opt} onChange={e => updateOption(si, oi, e.target.value)} 
+                        className={inp + (oi === step.correct ? ' border-emerald-400 ring-1 ring-emerald-400' : '')} />
+                      <input type="radio" checked={step.correct === oi} onChange={() => {
+                        const newSteps = [...dialogue];
+                        newSteps[si].correct = oi;
+                        newSteps[si].targetPhrase = opt;
+                        setDialogue(newSteps);
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Field label="Pronunciation Target Phrase *">
+                <div className="flex gap-2">
+                  <input required value={step.targetPhrase} onChange={e => updateStep(si, { targetPhrase: e.target.value })} 
+                    className={inp + " border-indigo-200 bg-indigo-50 font-medium"} placeholder="The exact phrase user must speak" />
+                  <button type="button" onClick={() => preview(step.targetPhrase, language)} className="px-3 bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors">
+                    🔊 Preview Pronunciation
+                  </button>
+                </div>
+              </Field>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3 pt-6 border-t border-gray-100">
+          <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            {saving ? 'Saving...' : scenario ? 'Update Scenario' : 'Create VR Scenario'}
+          </button>
+          <button type="button" onClick={onCancel} className="px-6 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function VRScenarioCard({ scenario, token, onDeleted, onEdit }: {
+  scenario: VRScenario;
+  token: string | null;
+  onDeleted: (id: string) => void;
+  onEdit: () => void;
+}) {
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this scenario?')) return;
+    try {
+      await axios.delete(`${API}/vr/scenarios/${scenario._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Scenario deleted');
+      onDeleted(scenario._id);
+    } catch {
+      toast.error('Delete failed');
+    }
+  };
+
+  return (
+    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-indigo-200 transition-all">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-gray-50" style={{ backgroundColor: scenario.theme + '20' }}>
+          {scenario.setting === 'coffee-shop' ? '☕' : scenario.setting === 'airport' ? '✈️' : scenario.setting === 'market' ? '🛒' : '🥽'}
+        </div>
+        <div>
+          <h3 className="font-bold text-gray-900">{scenario.title}</h3>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-gray-500 font-medium">{scenario.language}</span>
+            <span className="w-1 h-1 rounded-full bg-gray-300" />
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase ${LEVEL_CLS[scenario.level]}`}>{scenario.level}</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onEdit} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all text-sm font-medium">Edit</button>
+        <button onClick={handleDelete} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all text-sm font-medium">Delete</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Admin Page ───────────────────────────────────────────────────────────
 
 const Admin = () => {
   const { token } = useContext(AuthContext);
+  const [tab, setTab] = useState<'courses' | 'vr'>('courses');
+  
+  // Courses state
   const [courses, setCourses] = useState<Course[]>([]);
   const [title, setTitle] = useState('');
   const [language, setLanguage] = useState('');
   const [level, setLevel] = useState('Beginner');
   const [description, setDescription] = useState('');
 
-  useEffect(() => { fetchCourses(); }, []);
+  // VR state
+  const [vrScenarios, setVrScenarios] = useState<VRScenario[]>([]);
+  const [editingVR, setEditingVR] = useState<VRScenario | null>(null);
+  const [showVRForm, setShowVRForm] = useState(false);
+
+  useEffect(() => { 
+    fetchCourses();
+    fetchVR();
+  }, []);
 
   const fetchCourses = async () => {
     try { const r = await axios.get(`${API}/courses`); setCourses(r.data); }
     catch { toast.error('Failed to load courses'); }
+  };
+
+  const fetchVR = async () => {
+    try { const r = await axios.get(`${API}/vr/scenarios`); setVrScenarios(r.data); }
+    catch { console.error('Failed to load VR'); }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -411,56 +652,96 @@ const Admin = () => {
 
   return (
     <div className="max-w-6xl mx-auto py-12 px-6">
-      <h1 className="text-3xl font-bold text-gray-900 mb-1">Admin Dashboard</h1>
-      <p className="text-gray-500 mb-10">Manage courses, lessons, and quizzes.</p>
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-        {/* Create Course sidebar */}
-        <div className="lg:col-span-2">
-          <div className="bg-white p-7 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-5">Create New Course</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <Field label="Title *">
-                <input required value={title} onChange={e => setTitle(e.target.value)} className={inp} placeholder="Spanish for Beginners" />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Language *">
-                  <input required value={language} onChange={e => setLanguage(e.target.value)} className={inp} placeholder="Spanish" />
-                </Field>
-                <Field label="Level">
-                  <select value={level} onChange={e => setLevel(e.target.value)} className={inp}>
-                    {LEVELS.map(l => <option key={l}>{l}</option>)}
-                  </select>
-                </Field>
-              </div>
-              <Field label="Description *">
-                <textarea required rows={3} value={description} onChange={e => setDescription(e.target.value)}
-                  className={inp + ' resize-none'} placeholder="Short description…" />
-              </Field>
-              <button type="submit"
-                className="w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm text-sm">
-                Create Course
-              </button>
-            </form>
-          </div>
+      <div className="flex justify-between items-end mb-10">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">Admin Dashboard</h1>
+          <p className="text-gray-500">Manage courses, lessons, and VR scenarios.</p>
         </div>
-
-        {/* Course list */}
-        <div className="lg:col-span-3 space-y-4">
-          <h2 className="text-lg font-bold text-gray-900">
-            Manage Courses <span className="text-sm font-normal text-gray-400">({courses.length})</span>
-          </h2>
-          {courses.length === 0 ? (
-            <div className="bg-white p-8 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400 text-sm">
-              No courses yet. Create one to get started.
-            </div>
-          ) : courses.map(c => (
-            <CourseCard key={c._id} course={c} token={token}
-              onDeleted={id => setCourses(p => p.filter(x => x._id !== id))}
-              onUpdated={updated => setCourses(p => p.map(x => x._id===updated._id ? updated : x))} />
-          ))}
+        <div className="flex bg-gray-100 p-1 rounded-xl">
+          <button onClick={() => setTab('courses')} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'courses' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>Courses</button>
+          <button onClick={() => setTab('vr')} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'vr' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>VR Scenarios</button>
         </div>
       </div>
+
+      {tab === 'courses' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+          {/* Create Course sidebar */}
+          <div className="lg:col-span-2">
+            <div className="bg-white p-7 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-5">Create New Course</h2>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <Field label="Title *">
+                  <input required value={title} onChange={e => setTitle(e.target.value)} className={inp} placeholder="Spanish for Beginners" />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Language *">
+                    <input required value={language} onChange={e => setLanguage(e.target.value)} className={inp} placeholder="Spanish" />
+                  </Field>
+                  <Field label="Level">
+                    <select value={level} onChange={e => setLevel(e.target.value)} className={inp}>
+                      {LEVELS.map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Description *">
+                  <textarea required rows={3} value={description} onChange={e => setDescription(e.target.value)}
+                    className={inp + ' resize-none'} placeholder="Short description…" />
+                </Field>
+                <button type="submit"
+                  className="w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm text-sm">
+                  Create Course
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Course list */}
+          <div className="lg:col-span-3 space-y-4">
+            <h2 className="text-lg font-bold text-gray-900">
+              Manage Courses <span className="text-sm font-normal text-gray-400">({courses.length})</span>
+            </h2>
+            {courses.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400 text-sm">
+                No courses yet. Create one to get started.
+              </div>
+            ) : courses.map(c => (
+              <CourseCard key={c._id} course={c} token={token}
+                onDeleted={id => setCourses(p => p.filter(x => x._id !== id))}
+                onUpdated={updated => setCourses(p => p.map(x => x._id===updated._id ? updated : x))} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {showVRForm || editingVR ? (
+            <VRScenarioBuilder 
+              scenario={editingVR || undefined} 
+              token={token} 
+              onCancel={() => { setShowVRForm(false); setEditingVR(null); }}
+              onSave={() => { setShowVRForm(false); setEditingVR(null); fetchVR(); }} />
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">VR Scenarios</h2>
+                <button onClick={() => setShowVRForm(true)} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-all">
+                  + Create Scenario
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {vrScenarios.length === 0 ? (
+                  <div className="col-span-full bg-white p-12 rounded-3xl border border-dashed border-gray-200 text-center text-gray-400">
+                    No VR scenarios found. Click create to add one.
+                  </div>
+                ) : vrScenarios.map(s => (
+                  <VRScenarioCard key={s._id} scenario={s} token={token} 
+                    onDeleted={id => setVrScenarios(p => p.filter(x => x._id !== id))}
+                    onEdit={() => setEditingVR(s)} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
