@@ -75,20 +75,19 @@ const Quiz = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!selectedOption) return;
+  const handleSelectOption = async (option: string) => {
+    if (feedback) return;
+    setSelectedOption(option);
+    
     try {
       const currentQuiz: any = quizzes[currentQuizIndex];
       const res = await axios.post('http://localhost:5000/api/quizzes/submit',
-        { quizId: currentQuiz._id, selectedOption },
+        { quizId: currentQuiz._id, selectedOption: option },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setFeedback({ isCorrect: res.data.isCorrect, correctAnswer: res.data.correctAnswer });
       if (res.data.isCorrect) {
         setScore(s => s + 1);
-        toast.success('Correct!');
-      } else {
-        toast.error('Incorrect!');
       }
     } catch {
       toast.error('Error submitting answer');
@@ -225,7 +224,7 @@ const Quiz = () => {
                 else cls += 'border-gray-100 text-gray-400 opacity-50';
               }
               return (
-                <button key={index} onClick={() => !feedback && setSelectedOption(option)}
+                <button key={index} onClick={() => !feedback && handleSelectOption(option)}
                   disabled={!!feedback} className={cls}>
                   <div className="flex items-center justify-between">
                     <span>{option}</span>
@@ -237,13 +236,24 @@ const Quiz = () => {
             })}
           </div>
 
+          {feedback && (
+            <div className={`mb-8 p-4 rounded-xl font-bold flex items-center gap-2 ${feedback.isCorrect ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+              {feedback.isCorrect ? (
+                <>
+                  <Check className="w-6 h-6" />
+                  <span>Correct!</span>
+                </>
+              ) : (
+                <>
+                  <X className="w-6 h-6" />
+                  <span>Incorrect — the right answer was "{feedback.correctAnswer}"</span>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end">
-            {!feedback ? (
-              <button onClick={handleSubmit} disabled={!selectedOption}
-                className={`py-4 px-10 rounded-xl font-bold text-lg shadow-sm transition-all ${selectedOption ? 'bg-primary text-white hover:bg-primary-hover hover:shadow-md cursor-pointer' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                Submit Answer
-              </button>
-            ) : (
+            {feedback && (
               <button onClick={handleNext}
                 className="py-4 px-10 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-black shadow-sm transition-all flex items-center gap-2">
                 {currentQuizIndex < quizzes.length - 1 ? 'Next Question' : 'View Results'}

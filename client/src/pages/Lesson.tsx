@@ -25,6 +25,43 @@ const Lesson = () => {
   const [loading, setLoading] = useState(true);
   const { token } = useContext(AuthContext);
 
+  // Time tracking
+  useEffect(() => {
+    const startTime = Date.now();
+
+    const saveTime = async () => {
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      if (elapsedSeconds < 1) return;
+
+      try {
+        // We use navigator.sendBeacon for more reliability on page close, 
+        // but it doesn't support headers easily. 
+        // Standard axios is fine for component unmount/lesson switch.
+        await axios.post(`http://localhost:5000/api/progress/time`, 
+          { courseId, seconds: elapsedSeconds },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch (err) {
+        console.error('Failed to save time:', err);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveTime();
+      }
+    };
+
+    window.addEventListener('beforeunload', saveTime);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      saveTime();
+      window.removeEventListener('beforeunload', saveTime);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [courseId, activeLesson?._id, token]);
+
   useEffect(() => {
     fetchLessons();
   }, [courseId]);

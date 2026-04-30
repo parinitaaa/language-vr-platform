@@ -18,6 +18,7 @@ export default function VRScene() {
 
   const [stepIndex, setStepIndex] = useState(0);
   const [score, setScore] = useState(0);
+  const [pronunciationAttempts, setPronunciationAttempts] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -46,7 +47,7 @@ export default function VRScene() {
     setSaving(true);
     try {
       await axios.post(`${API}/vr/progress`,
-        { scenarioId, score },
+        { scenarioId, score, pronunciationAttempts },
         { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch (e) {
@@ -110,6 +111,7 @@ export default function VRScene() {
           totalSteps={scenario.dialogue.length}
           onAnswer={handleAnswer}
           onNext={handleNext}
+          onPronounceAttempt={() => setPronunciationAttempts(a => a + 1)}
           completed={completed}
           score={score}
           onFinish={() => navigate('/vr')}

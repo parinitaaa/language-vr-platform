@@ -22,7 +22,7 @@ const getScenarioById = async (req, res) => {
 
 const saveProgress = async (req, res) => {
   try {
-    const { scenarioId, score } = req.body;
+    const { scenarioId, score, pronunciationAttempts } = req.body;
     const userId = req.user._id;
 
     const existing = await VRProgress.findOne({ userId, scenarioId });
@@ -31,13 +31,19 @@ const saveProgress = async (req, res) => {
       if (score > existing.score) {
         existing.score = score;
         existing.completedAt = new Date();
-        await existing.save();
       }
+      // Always track pronunciation attempts
+      existing.pronunciationAttempts = (existing.pronunciationAttempts || 0) + (pronunciationAttempts || 0);
+      await existing.save();
       return res.json(existing);
     }
 
     const progress = await VRProgress.create({
-      userId, scenarioId, score, completedAt: new Date()
+      userId, 
+      scenarioId, 
+      score, 
+      pronunciationAttempts: pronunciationAttempts || 0,
+      completedAt: new Date()
     });
     res.status(201).json(progress);
   } catch (error) {

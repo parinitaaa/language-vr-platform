@@ -9,6 +9,13 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const { token, user } = useContext(AuthContext);
 
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
   useEffect(() => {
     fetchProgress();
   }, []);
@@ -76,6 +83,10 @@ const Dashboard = () => {
                 <div className="flex flex-col gap-1 p-3 bg-white rounded-xl border border-gray-100">
                   <span className="flex items-center gap-1 text-sm text-gray-500"><CheckCircle className="w-4 h-4" /> Quizzes</span>
                   <span className="font-bold text-gray-900">{progress.quizScores.filter((q:any) => q.passed).length} Passed</span>
+                </div>
+                <div className="flex flex-col gap-1 p-3 bg-white rounded-xl border border-gray-100 col-span-2">
+                  <span className="flex items-center gap-1 text-sm text-gray-500"><Clock className="w-4 h-4" /> Total Time Spent</span>
+                  <span className="font-bold text-gray-900">{formatTime(progress.timeSpent || 0)}</span>
                 </div>
               </div>
 
