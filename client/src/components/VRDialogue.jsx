@@ -5,6 +5,7 @@ export default function VRDialogue({
   step,           // { npc, options, correct }
   stepIndex,
   totalSteps,
+  language,
   onAnswer,       // (isCorrect) => void
   onNext,         // () => void
   onPronounceAttempt, // () => void
@@ -19,6 +20,43 @@ export default function VRDialogue({
   const [pronounceFeedback, setPronounceFeedback] = useState(null); // 'correct', 'incorrect'
   const [retryCount, setRetryCount] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeakingNPC, setIsSpeakingNPC] = useState(false);
+  const [isSpeakingTarget, setIsSpeakingTarget] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const langMap = {
+    'Spanish': 'es-ES',
+    'French': 'fr-FR',
+    'Hindi': 'hi-IN',
+    'German': 'de-DE',
+    'Italian': 'it-IT',
+    'Japanese': 'ja-JP'
+  };
+
+  const normalize = str => str.toLowerCase().trim()
+    .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e')
+    .replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o')
+    .replace(/[úùü]/g, 'u').replace(/[¿¡.,!?]/g, '');
+
+  const speak = (text, type) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langMap[language] || 'es-ES';
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    if (type === 'npc') setIsSpeakingNPC(true);
+    else setIsSpeakingTarget(true);
+
+    utterance.onend = () => {
+      setIsSpeakingNPC(false);
+      setIsSpeakingTarget(false);
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = SpeechRecognition ? new SpeechRecognition() : null;
@@ -35,43 +73,67 @@ export default function VRDialogue({
     }
   };
 
-  const handleStartListening = () => {
+  const handleStartListening = async () => {
     if (!recognition) return;
-    setIsListening(true);
-    setPronounceFeedback(null);
-    setTranscript('');
-    onPronounceAttempt();
     
-    recognition.lang = 'en-US'; // Default, can be adjusted if scenario has lang
-    recognition.start();
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsListening(true);
+      setPronounceFeedback(null);
+      setTranscript('');
+      setErrorMsg('');
+      onPronounceAttempt();
+      
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = langMap[language] || 'es-ES';
+      recognition.start();
 
-    recognition.onresult = (event) => {
-      const text = event.results[0][0].transcript;
-      setTranscript(text);
-      handlePronounceCheck(text);
-    };
+      recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        setTranscript(text);
+        handlePronounceCheck(text);
+      };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
+      recognition.onerror = (event) => {
+        setIsListening(false);
+        switch (event.error) {
+          case 'not-allowed':
+            setErrorMsg("Microphone access denied. Please allow microphone in your browser settings.");
+            break;
+          case 'no-speech':
+            setErrorMsg("No speech detected. Please try again.");
+            break;
+          case 'network':
+            setErrorMsg("Network error. Speech recognition requires internet.");
+            break;
+          default:
+            setErrorMsg("Could not process speech. Please try again.");
+        }
+      };
 
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+    } catch (err) {
+      setErrorMsg("Microphone access denied. Please allow microphone in your browser settings.");
+    }
   };
 
-  const handlePronounceCheck = (text) => {
-    const expected = step.options[step.correct].toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"").trim();
-    const actual = text.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"").trim();
+  const handlePronounceCheck = (heard) => {
+    const targetPhrase = step.options[step.correct];
+    const isCorrect = normalize(heard) === normalize(targetPhrase);
 
-    if (actual === expected) {
+    if (isCorrect) {
       setPronounceFeedback('correct');
-      setIsPronouncing(false);
+      setTimeout(() => {
+        setIsPronouncing(false);
+        setRetryCount(0);
+      }, 2000);
     } else {
       setPronounceFeedback('incorrect');
       if (retryCount >= 1) {
-        // Auto-proceed after 1 retry
-        setTimeout(() => setIsPronouncing(false), 2000);
+        // Allow skipping or proceed after 1 retry
       } else {
         setRetryCount(prev => prev + 1);
       }
@@ -147,8 +209,16 @@ export default function VRDialogue({
               <div className="w-9 h-9 rounded-full bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">
                 🤖
               </div>
-              <div className="bg-white/10 rounded-2xl rounded-tl-none px-4 py-3 flex-1">
+              <div className="bg-white/10 rounded-2xl rounded-tl-none px-4 py-3 flex-1 flex items-center justify-between gap-4">
                 <p className="text-white font-medium leading-relaxed">{step.npc}</p>
+                {window.speechSynthesis && (
+                  <button 
+                    onClick={() => speak(step.npc, 'npc')}
+                    className={`p-2 rounded-full transition-all ${isSpeakingNPC ? 'bg-indigo-500 text-white animate-pulse' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -182,37 +252,75 @@ export default function VRDialogue({
             
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
               <p className="text-gray-400 text-sm mb-2">Target Phrase:</p>
-              <p className="text-white text-2xl font-serif italic flex items-center justify-center gap-2">
-                <Volume2 className="w-5 h-5 text-indigo-400" />
-                {step.options[step.correct]}
-              </p>
+              <div className="flex items-center justify-center gap-3">
+                <p className="text-white text-2xl font-serif italic">
+                  {step.options[step.correct]}
+                </p>
+                {window.speechSynthesis && (
+                  <button 
+                    onClick={() => speak(step.options[step.correct], 'target')}
+                    className={`p-2.5 rounded-full transition-all ${isSpeakingTarget ? 'bg-indigo-500 text-white animate-pulse' : 'bg-white/10 text-indigo-400 hover:bg-white/20'}`}
+                  >
+                    <Volume2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {transcript && (
-              <div className="mb-6 animate-in fade-in slide-in-from-bottom-2">
-                <p className="text-gray-500 text-xs mb-1 uppercase font-bold">You said:</p>
-                <p className={`text-lg font-medium ${pronounceFeedback === 'correct' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {transcript}
+            {pronounceFeedback === 'correct' && (
+              <div className="mb-6 p-4 bg-emerald-500/20 border border-emerald-500/40 rounded-xl animate-in zoom-in duration-300">
+                <p className="text-emerald-400 font-bold flex items-center justify-center gap-2">
+                  <Check className="w-5 h-5" /> Correct! Well done.
                 </p>
               </div>
             )}
 
-            {pronounceFeedback === 'incorrect' && retryCount === 1 && (
-              <div className="mb-4 text-red-300 text-sm bg-red-500/10 py-2 rounded-lg border border-red-500/20">
-                ❌ Not quite. Let's try one more time!
+            {pronounceFeedback === 'incorrect' && (
+              <div className="mb-6 p-4 bg-red-500/20 border border-red-500/40 rounded-xl animate-in slide-in-from-top-2">
+                <div className="text-left space-y-1">
+                  <p className="text-red-400 text-sm"><span className="font-bold">You said:</span> "{transcript || '...'}"</p>
+                  <p className="text-gray-300 text-sm"><span className="font-bold">Expected:</span> "{step.options[step.correct]}"</p>
+                </div>
+                {retryCount < 2 && (
+                  <button 
+                    onClick={handleStartListening}
+                    className="mt-3 text-white bg-red-600 hover:bg-red-700 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors"
+                  >
+                    Try Again
+                  </button>
+                )}
               </div>
             )}
 
-            <button
-              onClick={handleStartListening}
-              disabled={isListening}
-              className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${isListening ? 'bg-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'bg-indigo-600 hover:bg-indigo-700 shadow-lg'}`}
-            >
-              {isListening ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
-            </button>
-            <p className="text-gray-400 text-sm mt-4">
-              {isListening ? 'Listening...' : 'Click to start recording'}
+            {errorMsg && (
+              <div className="mb-6 p-3 bg-amber-500/20 border border-amber-500/40 rounded-lg text-amber-200 text-sm">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="relative inline-block">
+              {isListening && (
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-ping" />
+              )}
+              <button
+                onClick={handleStartListening}
+                disabled={isListening || (pronounceFeedback === 'correct')}
+                className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${isListening ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'bg-indigo-600 hover:bg-indigo-700 shadow-lg'} ${(pronounceFeedback === 'correct') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isListening ? <Mic className="w-8 h-8 text-white animate-pulse" /> : <Mic className="w-8 h-8 text-white" />}
+              </button>
+            </div>
+            
+            <p className="text-gray-400 text-sm mt-4 font-medium">
+              {isListening ? <span className="text-red-400 animate-pulse">Listening... speak now</span> : 'Click to start recording'}
             </p>
+
+            <button 
+              onClick={() => setIsPronouncing(false)}
+              className="mt-8 text-gray-500 hover:text-white text-sm font-medium transition-colors"
+            >
+              Skip →
+            </button>
           </div>
         )}
 

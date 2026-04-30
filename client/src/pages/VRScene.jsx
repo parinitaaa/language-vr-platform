@@ -109,6 +109,7 @@ export default function VRScene() {
           step={currentStep}
           stepIndex={stepIndex}
           totalSteps={scenario.dialogue.length}
+          language={scenario.language}
           onAnswer={handleAnswer}
           onNext={handleNext}
           onPronounceAttempt={() => setPronunciationAttempts(a => a + 1)}
