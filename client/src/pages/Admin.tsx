@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -416,6 +416,7 @@ function VRScenarioBuilder({ scenario, token, onSave, onCancel }: {
     targetPhrase: ''
   }]);
   const [saving, setSaving] = useState(false);
+  const utteranceRef = useRef<any>(null);
 
   const addStep = () => {
     setDialogue([...dialogue, { npc: '', options: ['', '', ''], correct: 0, targetPhrase: '' }]);
@@ -459,12 +460,32 @@ function VRScenarioBuilder({ scenario, token, onSave, onCancel }: {
   };
 
   const preview = (text: string, lang: string) => {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis || !text) {
+      console.warn('TTS Preview: Missing text or speech synth', { text });
+      return;
+    }
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const langMap: any = { 'Spanish': 'es-ES', 'French': 'fr-FR', 'Hindi': 'hi-IN', 'German': 'de-DE' };
-    u.lang = langMap[lang] || 'en-US';
-    window.speechSynthesis.speak(u);
+    
+    setTimeout(() => {
+      const u = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = u;
+      
+      const langMap: any = { 
+        'Spanish': 'es-ES', 'French': 'fr-FR', 'Hindi': 'hi-IN', 'German': 'de-DE',
+        'Italian': 'it-IT', 'Japanese': 'ja-JP', 'Portuguese': 'pt-BR', 'Mandarin': 'zh-CN',
+        'Arabic': 'ar-SA', 'Korean': 'ko-KR'
+      };
+      
+      const targetLang = langMap[lang] || langMap[lang.trim()] || 'en-US';
+      console.log('TTS Preview Debug:', { text, lang, targetLang });
+      u.lang = targetLang;
+      
+      u.onend = () => { utteranceRef.current = null; };
+      u.onerror = () => { utteranceRef.current = null; };
+      
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      window.speechSynthesis.speak(u);
+    }, 50);
   };
 
   return (
@@ -544,7 +565,7 @@ function VRScenarioBuilder({ scenario, token, onSave, onCancel }: {
                 <div className="flex gap-2">
                   <input required value={step.targetPhrase} onChange={e => updateStep(si, { targetPhrase: e.target.value })} 
                     className={inp + " border-indigo-200 bg-indigo-50 font-medium"} placeholder="The exact phrase user must speak" />
-                  <button type="button" onClick={() => preview(step.targetPhrase, language)} className="px-3 bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors">
+                  <button type="button" onClick={() => preview(step.targetPhrase || (step as any).phrase || (step as any).text, language)} className="px-3 bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors">
                     🔊 Preview Pronunciation
                   </button>
                 </div>
@@ -715,6 +736,7 @@ const Admin = () => {
         <div className="space-y-6">
           {showVRForm || editingVR ? (
             <VRScenarioBuilder 
+              key={editingVR?._id || 'new'}
               scenario={editingVR || undefined} 
               token={token} 
               onCancel={() => { setShowVRForm(false); setEditingVR(null); }}

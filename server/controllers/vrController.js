@@ -5,7 +5,7 @@ const getScenarios = async (req, res) => {
   try {
     const { language } = req.query;
     const filter = language ? { language } : {};
-    const scenarios = await VRScenario.find(filter, '-dialogue');
+    const scenarios = await VRScenario.find(filter);
     res.json(scenarios);
   } catch (error) {
     res.status(500).json({ message: error.message });
