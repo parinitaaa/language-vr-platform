@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Check, X, Volume2 } from 'lucide-react';
 
 export default function VRDialogue({
@@ -23,6 +23,35 @@ export default function VRDialogue({
   const [isSpeakingNPC, setIsSpeakingNPC] = useState(false);
   const [isSpeakingTarget, setIsSpeakingTarget] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
+  const recognitionRef = useRef(null);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    // Preload voices
+    const loadVoices = () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+      }
+    };
+    loadVoices();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    // Initialize SpeechRecognition once
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const langMap = {
     'Spanish': 'es-ES',
@@ -45,6 +74,7 @@ export default function VRDialogue({
   const speak = (text, type) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = langMap[language] || 'en-US';
     utterance.rate = 0.85;
@@ -62,9 +92,6 @@ export default function VRDialogue({
     window.speechSynthesis.speak(utterance);
   };
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-
   const handleSelect = (idx) => {
     if (answered) return;
     setSelected(idx);
@@ -72,34 +99,37 @@ export default function VRDialogue({
     const isCorrect = idx === step.correct;
     onAnswer(isCorrect);
     
-    if (isCorrect && SpeechRecognition) {
+    if (isCorrect && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       setIsPronouncing(true);
     }
   };
 
   const handleStartListening = async () => {
+    const recognition = recognitionRef.current;
     if (!recognition) return;
+
+    // Cancel any ongoing speech
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediate UI update
       setIsListening(true);
       setPronounceFeedback(null);
       setTranscript('');
       setErrorMsg('');
       onPronounceAttempt();
       
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = langMap[language] || 'en-US';
-      recognition.start();
-
+      recognition.lang = langMap[language] || 'es-ES';
+      
       recognition.onresult = (event) => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         const text = event.results[0][0].transcript;
         setTranscript(text);
         handlePronounceCheck(text);
       };
 
       recognition.onerror = (event) => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setIsListening(false);
         switch (event.error) {
           case 'not-allowed':
@@ -108,9 +138,6 @@ export default function VRDialogue({
           case 'no-speech':
             setErrorMsg("No speech detected. Please try again.");
             break;
-          case 'network':
-            setErrorMsg("Network error. Speech recognition requires internet.");
-            break;
           default:
             setErrorMsg("Could not process speech. Please try again.");
         }
@@ -118,9 +145,21 @@ export default function VRDialogue({
 
       recognition.onend = () => {
         setIsListening(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
       };
+
+      // 5 second safety timeout
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        recognition.stop();
+        setErrorMsg("No speech detected. Please try again.");
+        setIsListening(false);
+      }, 5000);
+
+      recognition.start();
     } catch (err) {
       setErrorMsg("Microphone access denied. Please allow microphone in your browser settings.");
+      setIsListening(false);
     }
   };
 
@@ -130,15 +169,12 @@ export default function VRDialogue({
 
     if (isCorrect) {
       setPronounceFeedback('correct');
-      setTimeout(() => {
-        setIsPronouncing(false);
-        setRetryCount(0);
-      }, 2000);
+      // Removed 2s delay, immediately proceed or set state for user to see
+      setIsPronouncing(false);
+      setRetryCount(0);
     } else {
       setPronounceFeedback('incorrect');
-      if (retryCount >= 1) {
-        // Allow skipping or proceed after 1 retry
-      } else {
+      if (retryCount < 1) {
         setRetryCount(prev => prev + 1);
       }
     }
