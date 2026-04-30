@@ -10,6 +10,9 @@ export default function VRSceneRenderer({ setting = 'Scenario', theme = '#4F46E5
   const [vrActive, setVrActive] = useState(false);
 
   useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
     const baseColor = new THREE.Color(theme);
     const bgColor = baseColor.clone().multiplyScalar(0.2);
     const floorColor = baseColor.clone().multiplyScalar(0.4);
