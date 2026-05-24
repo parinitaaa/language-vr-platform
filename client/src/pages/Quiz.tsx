@@ -40,6 +40,8 @@ const Quiz = () => {
   const { token } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   useEffect(() => {
     const init = async () => {
       await Promise.all([fetchQuizzes(), checkStatus()]);
@@ -49,7 +51,7 @@ const Quiz = () => {
 
   const fetchQuizzes = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/quizzes/lesson/${lessonId}`, {
+      const res = await axios.get(`${API}/quizzes/lesson/${lessonId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQuizzes(res.data);
@@ -62,7 +64,7 @@ const Quiz = () => {
 
   const checkStatus = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/quizzes/status/${lessonId}`, {
+      const res = await axios.get(`${API}/quizzes/status/${lessonId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.completed) {
@@ -81,7 +83,7 @@ const Quiz = () => {
     
     try {
       const currentQuiz: any = quizzes[currentQuizIndex];
-      const res = await axios.post('http://localhost:5000/api/quizzes/submit',
+      const res = await axios.post(`${API}/quizzes/submit`,
         { quizId: currentQuiz._id, selectedOption: option },
         { headers: { Authorization: `Bearer ${token}` } }
       );

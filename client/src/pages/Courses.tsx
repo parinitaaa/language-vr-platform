@@ -11,13 +11,15 @@ const Courses = () => {
   const { user, token } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   useEffect(() => {
     fetchCourses();
   }, []);
 
   const fetchCourses = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/courses');
+      const res = await axios.get(`${API}/courses`);
       setCourses(res.data);
     } catch (error) {
       toast.error('Failed to load courses');
@@ -33,7 +35,7 @@ const Courses = () => {
       return;
     }
     try {
-      await axios.post(`http://localhost:5000/api/courses/${courseId}/enroll`, {}, {
+      await axios.post(`${API}/courses/${courseId}/enroll`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Enrolled successfully!');

@@ -12,10 +12,12 @@ const Register = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/register', { name, email, password });
+      const res = await axios.post(`${API}/auth/register`, { name, email, password });
       login(res.data, res.data.token);
       toast.success('Registered successfully!');
       navigate('/dashboard');

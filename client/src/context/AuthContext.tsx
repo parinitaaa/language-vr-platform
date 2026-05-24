@@ -17,9 +17,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [token]);
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   const fetchUser = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/auth/me');
+      const res = await axios.get(`${API}/auth/me`);
       setUser(res.data);
     } catch (error) {
       console.error(error);

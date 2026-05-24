@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 
-const API = 'http://localhost:5000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const SETTING_META = {
   'coffee-shop': { emoji: '☕', label: 'Coffee Shop', gradient: 'from-amber-900/80 to-amber-700/60', border: 'border-amber-700/40', badge: 'bg-amber-700/30 text-amber-300' },

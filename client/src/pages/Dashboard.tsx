@@ -16,13 +16,15 @@ const Dashboard = () => {
     return `${minutes}m`;
   };
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   useEffect(() => {
     fetchProgress();
   }, []);
 
   const fetchProgress = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/progress', {
+      const res = await axios.get(`${API}/progress`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setProgressData(res.data);

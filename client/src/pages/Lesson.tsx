@@ -25,6 +25,8 @@ const Lesson = () => {
   const [loading, setLoading] = useState(true);
   const { token } = useContext(AuthContext);
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   // Time tracking
   useEffect(() => {
     const startTime = Date.now();
@@ -37,7 +39,7 @@ const Lesson = () => {
         // We use navigator.sendBeacon for more reliability on page close, 
         // but it doesn't support headers easily. 
         // Standard axios is fine for component unmount/lesson switch.
-        await axios.post(`http://localhost:5000/api/progress/time`, 
+        await axios.post(`${API}/progress/time`, 
           { courseId, seconds: elapsedSeconds },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -68,7 +70,7 @@ const Lesson = () => {
 
   const fetchLessons = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/lessons/course/${courseId}`, {
+      const res = await axios.get(`${API}/lessons/course/${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setLessons(res.data);
@@ -86,7 +88,7 @@ const Lesson = () => {
   const loadLessonDetails = async (lessonId: string) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/lessons/${lessonId}`, {
+      const res = await axios.get(`${API}/lessons/${lessonId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setActiveLesson(res.data);

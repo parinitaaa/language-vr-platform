@@ -23,6 +23,7 @@ export default function VRDialogue({
   const [isSpeakingNPC, setIsSpeakingNPC] = useState(false);
   const [isSpeakingTarget, setIsSpeakingTarget] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [hindiVoiceWarning, setHindiVoiceWarning] = useState(false);
   
   const recognitionRef = useRef(null);
   const timeoutRef = useRef(null);
@@ -67,35 +68,76 @@ export default function VRDialogue({
     'Korean': 'ko-KR'
   };
 
+  // Case-insensitive lookup so 'hindi', 'Hindi', 'HINDI' all resolve correctly
+  const getLangCode = (lang) => {
+    if (!lang) return 'en-US';
+    const key = Object.keys(langMap).find(
+      k => k.toLowerCase() === lang.trim().toLowerCase()
+    );
+    return key ? langMap[key] : 'en-US';
+  };
+
+  // Returns the canonical language name (e.g. 'Hindi') from a raw string
+  const getCanonicalLang = (lang) => {
+    if (!lang) return null;
+    return Object.keys(langMap).find(
+      k => k.toLowerCase() === lang.trim().toLowerCase()
+    ) || null;
+  };
+
   const normalize = str => str.toLowerCase().trim()
     .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e')
     .replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o')
-    .replace(/[úùü]/g, 'u').replace(/[¿¡.,!?]/g, '');
+    .replace(/[úùü]/g, 'u')
+    .replace(/[।॥]/g, '')      // Hindi danda punctuation
+    .replace(/[¿¡.,!?]/g, '');
 
   const speak = (text, type) => {
     if (!window.speechSynthesis) return;
-    
-    // Safety check: if text is empty, don't attempt to speak
+
     if (!text) {
       console.warn('TTS: No text provided to speak()');
       return;
     }
 
     window.speechSynthesis.cancel();
-    
-    // Some browsers need a tiny delay after cancel() to clear the buffer
-    setTimeout(() => {
+
+    const doSpeak = () => {
       const utterance = new SpeechSynthesisUtterance(text);
-      utteranceRef.current = utterance; // Keep reference to prevent GC
-      
-      const targetLang = langMap[language] || langMap[language.trim()] || 'en-US';
-      console.log('TTS Debug:', { text, language, targetLang, type });
-      
-      utterance.lang = targetLang;
+      utteranceRef.current = utterance;
+
+      const canonical = getCanonicalLang(language);
+      const isHindi = canonical === 'Hindi';
+
+      if (isHindi) {
+        // Try a prioritised fallback chain for Hindi
+        const voices = window.speechSynthesis.getVoices();
+        const hindiVoice =
+          voices.find(v => v.lang === 'hi-IN') ||
+          voices.find(v => v.lang === 'hi') ||
+          voices.find(v => v.lang === 'en-IN') ||
+          voices.find(v => v.name.toLowerCase().includes('hindi')) ||
+          null;
+
+        if (hindiVoice) {
+          utterance.voice = hindiVoice;
+          setHindiVoiceWarning(false);
+        } else {
+          // No Hindi voice found — surface a warning to the user
+          setHindiVoiceWarning(true);
+        }
+        utterance.lang = 'hi-IN';
+        console.log('TTS Hindi Debug:', { hindiVoice, voices: voices.map(v => v.lang) });
+      } else {
+        const targetLang = getLangCode(language);
+        utterance.lang = targetLang;
+        console.log('TTS Debug:', { text, language, targetLang, type });
+      }
+
       utterance.rate = 0.85;
       utterance.pitch = 1;
       utterance.volume = 1;
-      
+
       if (type === 'npc') setIsSpeakingNPC(true);
       else setIsSpeakingTarget(true);
 
@@ -111,11 +153,21 @@ export default function VRDialogue({
         setIsSpeakingTarget(false);
         utteranceRef.current = null;
       };
-      
-      // Ensure engine is resumed
+
       if (window.speechSynthesis.paused) window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
-    }, 50);
+    };
+
+    // If voices haven't loaded yet, wait for them then speak
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        setTimeout(doSpeak, 50);
+      };
+    } else {
+      setTimeout(doSpeak, 50);
+    }
   };
 
   const handleSelect = (idx) => {
@@ -152,7 +204,8 @@ export default function VRDialogue({
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = langMap[language] || 'es-ES';
+      // Hindi: use hi-IN explicitly; fall back to case-insensitive lookup for all others
+      recognition.lang = getLangCode(language);
       recognitionRef.current = recognition;
 
       // Immediate UI update
@@ -174,6 +227,8 @@ export default function VRDialogue({
         setIsListening(false);
         console.error('Speech Recognition Error:', event.error);
         
+        const canonical = getCanonicalLang(language);
+        const isHindi = canonical === 'Hindi';
         switch (event.error) {
           case 'not-allowed':
           case 'service-not-allowed':
@@ -181,6 +236,13 @@ export default function VRDialogue({
             break;
           case 'no-speech':
             setErrorMsg("No speech detected. Please speak clearly into the microphone.");
+            break;
+          case 'language-not-supported':
+            setErrorMsg(
+              isHindi
+                ? "Hindi speech recognition is not supported on this browser/device. Try Chrome on Windows, Android, or a device with the Hindi language pack installed."
+                : `Speech recognition is not supported for this language (${language}) on your browser.`
+            );
             break;
           case 'network':
             setErrorMsg("Network error. Speech recognition requires an internet connection.");
@@ -355,6 +417,12 @@ export default function VRDialogue({
                   </button>
                 )}
               </div>
+              {/* Hindi voice warning — shown only when no Hindi voice is found */}
+              {hindiVoiceWarning && (
+                <p className="text-amber-400 text-xs mt-2 text-center">
+                  ⚠️ Hindi voice not available on this device. Try Chrome on Windows or Android.
+                </p>
+              )}
             </div>
 
             {pronounceFeedback === 'correct' && (

@@ -5,7 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import VRSceneRenderer from '../components/VRSceneRenderer';
 import VRDialogue from '../components/VRDialogue';
 
-const API = 'http://localhost:5000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function VRScene() {
   const { scenarioId } = useParams();
